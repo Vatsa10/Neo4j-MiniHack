@@ -13,12 +13,14 @@ Run (stdio): python connector/mcp_server.py
 Register in .mcp.json as the `save-my-tokens` server.
 """
 import os
+from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from neo4j import GraphDatabase
 
+import ingest_repo as ir
 from context_engine import build_context, NAMS
 
 load_dotenv()
@@ -29,6 +31,7 @@ _driver = GraphDatabase.driver(
     auth=(os.environ["NEO4J_USERNAME"], os.environ["NEO4J_PASSWORD"]),
 )
 _DB = os.environ.get("NEO4J_DATABASE", "neo4j")
+_REPO = os.environ.get("REPO_ROOT", "target-vscode/src")
 
 
 @mcp.tool()
@@ -42,6 +45,48 @@ def recall_context(task: str) -> str:
               f"~{st.get('warm')} tokens vs ~{st.get('cold')} cold "
               f"({st.get('saved_pct')}% saved) -->")
     return warm + footer
+
+
+@mcp.tool()
+def index_file(path: str) -> str:
+    """Deep-index ONE source file into the knowledge graph on demand: parse its
+    classes/functions/methods + resolve its imports to real files (vertical depth),
+    write them to AuraDB, and persist a one-line summary to NAMS agent memory.
+    Call this when you open/understand a file so the system learns it for next time.
+    path is relative to the repo root (e.g. 'vs/base/common/event.ts')."""
+    root = Path(_REPO).resolve()
+    fp = root / path
+    if not fp.exists():
+        return f"no such file under {_REPO}: {path}"
+    rec = ir.parse_file(fp, root)
+    if not rec:
+        return f"unsupported file type: {path}"
+    with _driver.session(database=_DB) as s:
+        known = {r["path"] for r in s.run("MATCH (f:File) RETURN f.path AS path")}
+        ir.resolve_imports([rec], known_paths=known)
+        ir.write_graph([rec], _driver, _DB)
+    # Inject a summary into NAMS so memory recalls this file's role next session.
+    classes = [d["name"] for d in rec["defs"] if d["kind"] == "class"][:5]
+    summary = (f"{rec['path']}: {len(rec['defs'])} symbols"
+               + (f", classes {', '.join(classes)}" if classes else "")
+               + f", imports {len(rec['internal_imports'])} files")
+    _nams_add(rec["name"], summary, "concept")
+    return ("indexed " + rec["path"] + f" — {len(rec['defs'])} symbols, "
+            f"{len(rec['internal_imports'])} internal imports; summary written to NAMS")
+
+
+def _nams_add(name, description, type):
+    key, ws = os.environ.get("NAMS_API_KEY"), os.environ.get("NAMS_WORKSPACE_ID")
+    if not key:
+        return
+    headers = {"Authorization": f"Bearer {key}"}
+    if ws:
+        headers["X-Workspace-Id"] = ws
+    try:
+        requests.post(f"{NAMS}/entities", headers=headers,
+                      json={"name": name, "type": type, "description": description}, timeout=20)
+    except Exception:
+        pass
 
 
 @mcp.tool()

@@ -2,10 +2,12 @@
 
 Neo4j MiniHack workspace. Building **Save My Tokens** — persistent memory + codebase KG for coding agents.
 - `save-my-tokens/PROTOCOL.md` — per-session memory loop · `save-my-tokens/DEMO.md` — judging runbook.
-- `connector/ingest_repo.py` — hybrid repo→KG (deterministic walk + gpt-4o-mini) into AuraDB.
-- `connector/embed_kg.py` — embeds Concept nodes + creates `concept_vec` vector index (run after ingest --llm).
-- `connector/context_engine.py` — real-time bridge with **hybrid retrieval**: NAMS vector memory + (vector-over-Concepts + symbol/keyword) graph-ranked code slice. Pipeline: ingest --llm → embed_kg → recall.
-- `.env` adds `NAMS_API_KEY`, `NAMS_WORKSPACE_ID`. NAMS REST needs `X-Workspace-Id` header.
+- `connector/ingest_repo.py` — repo→**vertical KG** into AuraDB. Model: `(:File)-[:IMPORTS]->(:File)` (resolved, traversable dep chains), `(:File)-[:DEFINES]->(:Symbol{kind,line,endline})`, `(:Symbol)-[:MEMBER_OF]->(:Symbol)` (method→class containment), `(:File)-[:EXT_IMPORT]->(:Module)`, `(:File)-[:ABOUT]->(:Concept)` (gpt-4o-mini). Exact code NOT stored — line ranges let the retriever read precise slices from disk. Batched flat passes + retries (don't use one giant tx — drops Aura connection). Flags `--llm --llm-limit N`.
+- `connector/embed_kg.py` — embeds Concept nodes + `concept_vec` vector index (run after concepts exist).
+- `connector/context_engine.py` — bridge with **hybrid retrieval**: NAMS vector memory + (concept-vector + symbol/keyword) graph-ranked files, each with matched symbols (line ranges), dependency neighbors, and **exact code read from disk**.
+- `connector/mcp_server.py` — MCP server `save-my-tokens`: `recall_context(task)`, `index_file(path)` (deep-index one file live → AuraDB + NAMS summary), `remember_fact(...)`.
+- Test bed: `target-vscode/` (sparse `src/vs/platform`+`src/vs/base`, ~2227 TS files). `target-repo/` was flask. `REPO_ROOT` env points the server at the on-disk repo for exact-code reads.
+- `.env` adds `NAMS_API_KEY`, `NAMS_WORKSPACE_ID`. NAMS REST needs `X-Workspace-Id` header. Pipeline: ingest → (concepts) → embed_kg → recall.
 - **Key fact**: this NAMS workspace (`dbMode=external`) points at the SAME AuraDB (`095a9ba9`). Memory (`:Entity`) and the code KG (`:File/:Symbol/:Concept`) share one graph, so the bridge is a single Cypher join on entity name — no REST needed (default). `--rest` forces the REST path.
 
 ## Goal

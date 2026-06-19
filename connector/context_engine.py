@@ -106,6 +106,7 @@ WHERE toLower(f.name) CONTAINS kw
 OPTIONAL MATCH (f)-[:DEFINES]->(s2:Symbol)
 WITH f, collect(DISTINCT s2.name)[..8] AS syms, collect(DISTINCT kw) AS reasons
 RETURN f.path AS path, f.loc AS loc, syms, reasons
+ORDER BY size(reasons) DESC, f.loc DESC LIMIT 30
 """
 
 
@@ -130,27 +131,69 @@ def kg_retrieve(kw, qvec, session):
     return ranked[:6]
 
 
-def build_context(task: str, session, repo_root="target-repo/src", rest=True):
-    """Join NAMS memory + hybrid KG slice into one compact context.
-    Returns (warm_text, stats). Shared by the CLI and the MCP server."""
+# Per-file vertical detail: matched symbols with exact line ranges + dependency neighbors.
+DETAIL_QUERY = """
+UNWIND $paths AS p
+MATCH (f:File {path: p})
+OPTIONAL MATCH (f)-[:DEFINES]->(s:Symbol)
+  WHERE any(k IN $kw WHERE toLower(s.name) CONTAINS k)
+WITH f, [x IN collect(DISTINCT {name:s.name, kind:s.kind, line:s.line, endline:s.endline})
+         WHERE x.name IS NOT NULL][..4] AS matched
+OPTIONAL MATCH (f)-[:IMPORTS]->(dep:File)
+RETURN f.path AS path, f.loc AS loc, matched, collect(DISTINCT dep.path)[..6] AS deps
+"""
+
+
+def read_code(repo_root, path, line, endline, max_lines=45):
+    """Read the exact source for a symbol from disk (KG stores only line ranges)."""
+    fp = Path(repo_root) / path
+    if not fp.exists():
+        return ""
+    lines = fp.read_text(encoding="utf-8", errors="ignore").splitlines()
+    end = min(endline or line, line + max_lines)
+    return "\n".join(lines[line - 1:end])
+
+
+def build_context(task: str, session, repo_root="target-vscode/src", rest=True, with_code=True):
+    """Join NAMS memory + hybrid KG slice (vertical: matched symbols, exact code,
+    dependency neighbors) into one compact context. Returns (warm_text, stats)."""
     kw = keywords(task)
     if not kw:
         return "(no usable keywords in task)", {}
     qvec = embed_query(task)
-    # Memory: NAMS vector search (accurate) by default; fall back to same-DB substring.
     mem = nams_memory_rest(task) if rest else None
     if mem is None:
         mem = nams_memory_kg(kw, session)
     files = kg_retrieve(kw, qvec, session)
-    warm = "## Recalled memory\n" + "\n".join(mem) + "\n\n## Relevant code (from KG)\n" + \
-        "\n".join(
-            f"- {f['path']} ({f['loc']} loc) [{'+'.join(str(r) for r in f.get('reasons', [])[:3])}]"
-            f" :: {', '.join(f['syms'])}" for f in files)
-    cold_text = ""
-    for f in files:
-        cand = list(Path(repo_root).rglob(Path(f["path"]).name))
-        if cand:
-            cold_text += cand[0].read_text(encoding="utf-8", errors="ignore")
+    paths = [f["path"] for f in files]
+    detail = {d["path"]: d for d in (r.data() for r in session.run(DETAIL_QUERY, paths=paths, kw=kw))}
+    reasons = {f["path"]: f.get("reasons", []) for f in files}
+
+    lines_out, code_blocks, cold_text, code_budget = [], [], "", 6
+    for p in paths:
+        d = detail.get(p, {"loc": 0, "matched": [], "deps": []})
+        why = "+".join(str(r) for r in reasons.get(p, [])[:3])
+        syms = ", ".join(f"{m['name']}:{m['kind']}@{m['line']}" for m in d["matched"]) or "(semantic match)"
+        deps = ", ".join(Path(x).name for x in d["deps"][:5])
+        lines_out.append(f"- {p} ({d['loc']} loc) [{why}]\n    symbols: {syms}\n    imports: {deps}")
+        # exact code for the top matched symbols (vertical depth, read from disk)
+        if with_code:
+            for m in d["matched"]:
+                if code_budget <= 0:
+                    break
+                code = read_code(repo_root, p, m["line"], m["endline"])
+                if code:
+                    code_blocks.append(f"### {p} :: {m['name']} ({m['kind']}, L{m['line']})\n```\n{code}\n```")
+                    code_budget -= 1
+        cand = Path(repo_root) / p
+        if cand.exists():
+            cold_text += cand.read_text(encoding="utf-8", errors="ignore")
+
+    warm = ("## Recalled memory\n" + "\n".join(mem) +
+            "\n\n## Relevant code (graph-ranked, with dependencies)\n" + "\n".join(lines_out))
+    if code_blocks:
+        warm += "\n\n## Exact code (read from disk via KG line ranges)\n" + "\n\n".join(code_blocks)
+
     cold, hot = count_tokens(cold_text), count_tokens(warm)
     stats = {"keywords": kw, "files": len(files), "cold": cold, "warm": hot,
              "saved_pct": round(100 * (cold - hot) / cold, 1) if cold else None}
@@ -160,7 +203,7 @@ def build_context(task: str, session, repo_root="target-repo/src", rest=True):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("task")
-    ap.add_argument("--repo-root", default="target-repo/src", help="for cold-cost sizing")
+    ap.add_argument("--repo-root", default="target-vscode/src", help="repo on disk for exact-code reads + cold sizing")
     ap.add_argument("--local-mem", action="store_true",
                     help="memory via same-DB substring instead of NAMS vector search")
     args = ap.parse_args()

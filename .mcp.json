@@ -31,7 +31,8 @@
         "NEO4J_DATABASE": "${NEO4J_DATABASE}",
         "NAMS_API_KEY": "${NAMS_API_KEY}",
         "NAMS_WORKSPACE_ID": "${NAMS_WORKSPACE_ID}",
-        "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+        "REPO_ROOT": "target-vscode/src"
       }
     }
   }
