@@ -15,21 +15,123 @@ Both required integrations are used:
 
 ## Architecture
 
-```
-target-vscode/src  ──► connector/ingest_repo.py ──► AuraDB vertical KG
-  (2227 TS files)      (struct walk + gpt-4o-mini)    File·Symbol·Concept
-                                                      IMPORTS (traversable)
-                                                      MEMBER_OF (containment)
+```mermaid
+graph TB
+    subgraph Ingest["① Ingest (once per repo)"]
+        direction LR
+        REPO["target-vscode/src<br/>2,227 TS files"] -->|"struct walk"| PARSE["parse symbols + imports<br/>60k symbols, 2.7k resolved deps"]
+        PARSE -->|"gpt-4o-mini"| CONCEPT["tag concepts + embed<br/>399 concepts, vector index"]
+        CONCEPT -->|"Bolt"| AURADB
+    end
 
-agent turn ──► recall_context(task) ──┐
-                  ├─ NAMS vector search (semantic memory)
-                  ├─ concept-vector index (semantic code)
-                  ├─ symbol/keyword matching
-                  ├─ graph-ranked merge (multi-signal bonus)
-                  └─ read_exact_code from disk via line ranges
-                       ▼
-                  compact context  〈〈 ~97% fewer tokens than reading files
+    subgraph Storage["② Single AuraDB"]
+        MEM["Entity<br/>(NAMS memory)"] --- CODE["File · Symbol · Concept<br/>(code KG)"]
+        CODE --- DOCS["Document · Chunk<br/>(Doc-Intel)"]
+    end
+
+    subgraph MCP["③ MCP server (save-my-tokens)"]
+        RC["recall_context(task)"] -->|"embed task"| VEC["concept_vec<br/>vector index"]
+        RC -->|"Cypher"| MEM
+        RC -->|"Cypher"| CODE
+        RC -->|"read disk"| DISK["target-vscode/src<br/>(exact code via line ranges)"]
+        RC -->|"POST fire-&-forget"| NAMS2["NAMS REST<br/>auto-store exchange"]
+    end
+
+    subgraph Loop["④ Agent loop (every turn)"]
+        AGENT["coding agent<br/>(Claude Code/Cursor/Codex)"] -->|"call"| RC
+        RC -->|"compact context<br/>~1k tokens"| AGENT
+        NAMS2 -->|"entity extraction<br/>async"| MEM
+    end
+
+    subgraph Output["⑤ Result"]
+        CTX["~1,500 tokens context<br/>vs ~43,000 cold<br/>≈97% saved"]
+    end
+
+    AGENT --> CTX
+    MEM -.->|"next session"| AGENT
+
+    style AURADB fill:#1971C2,color:#fff
+    style MEM fill:#F08C00,color:#000
+    style CODE fill:#1971C2,color:#fff
+    style DOCS fill:#1971C2,color:#fff
+    style RC fill:#6366F1,color:#fff
+    style AGENT fill:#2F9E44,color:#fff
+    style CTX fill:#2F9E44,color:#fff
 ```
+
+### Flow (per turn)
+
+```mermaid
+sequenceDiagram
+    participant Agent as coding agent
+    participant MCP as recall_context
+    participant NAMS as NAMS REST
+    participant Aura as AuraDB
+    participant Disk as repo on disk
+
+    Agent->>MCP: recall_context("how does file watching work?")
+    
+    MCP->>NAMS: POST /entities/search (vector)
+    NAMS-->>MCP: memory hits (scored)
+    
+    MCP->>MCP: embedQuery("file watching") → vector
+    MCP->>Aura: concept_vec index (semantic code)
+    MCP->>Aura: symbol/keyword match
+    MCP->>Aura: merge + graph-rank (multi-signal bonus)
+    MCP->>Aura: matched symbols + dependency neighbors
+    Aura-->>MCP: ranked file/symbol/dep data
+    
+    MCP->>Disk: read exact code at matched line ranges
+    Disk-->>MCP: source code slices
+    
+    MCP-->>Agent: compact context (~1,500 tokens vs ~43,000)
+
+    Note over MCP,NAMS: SIDE EFFECT (fire-and-forget)
+    MCP->>NAMS: POST message (user task)
+    MCP->>NAMS: POST message (assistant response)
+    NAMS-->>NAMS: entity extraction (async)
+    NAMS-->>NAMS: Memory Browser updates
+
+    Note over Agent,NAMS: NEXT SESSION
+    Agent->>NAMS: memory_get_context("file watching")
+    NAMS-->>Agent: prior entities + facts (auto-recalled)
+```
+
+### Data model (what lives in the one AuraDB)
+
+```mermaid
+erDiagram
+    File ||--o{ Symbol : DEFINES
+    File ||--o{ File : IMPORTS
+    File ||--o{ Module : EXT_IMPORT
+    File ||--o{ Concept : ABOUT
+    Symbol ||--o{ Symbol : MEMBER_OF
+    Entity ||--o{ Entity : RELATED_TO
+
+    File {
+        string path "vs/platform/files/common/watcher.ts"
+        string name "watcher.ts"
+        string lang "typescript"
+        int loc "508"
+    }
+    Symbol {
+        string key "path::name::line"
+        string name "IWatcher"
+        string kind "interface"
+        int line "96"
+        int endline "160"
+    }
+    Concept {
+        string name "file watching"
+        float[] embedding "1536-dim vector"
+    }
+    Entity {
+        string name "file system service"
+        string type "concept"
+        string description "NAMS agent memory"
+    }
+```
+
 
 ## 0. Setup (once)
 
