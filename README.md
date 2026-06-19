@@ -31,36 +31,33 @@ Both Neo4j services share **one AuraDB** (NAMS runs in external-db mode). Memory
 (`:Entity`) + code KG (`:File/:Symbol/:Concept`) join on entity name — single Cypher
 query, no cross-service orchestration.
 
-## Plug and play (one command)
+## User onboarding (3 steps)
 
+### Step 1: Get your services
+- **Neo4j Aura** — create a free instance at [console.neo4j.io](https://console.neo4j.io)
+- **NAMS** — create workspace at [memory.neo4jlabs.com](https://memory.neo4jlabs.com).
+  **Important:** choose **External** database mode and enter your Aura credentials.
+  Then Settings → API Keys → create key.
+- **OpenAI** — create a key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+
+### Step 2: Run the setup wizard
 ```bash
-# 1. Install
-pip install -e .
-
-# 2. Register with Claude Code
-claude mcp add save-my-tokens -- python -m connector.mcp_server
-
-# 3. Ingest your repo (from within Claude Code)
-/add-folder src/
-```
-
-That's it. `recall_context` now retrieves from your codebase. No clone, no manual Cypher, no console.
-
-### Full setup (for development)
-
-```bash
+git clone <this-repo> && cd Neo4j-MiniHack
 pip install -r connector/requirements.txt
+python connector/setup.py          # interactive — tests connections, writes .env
 ```
 
-Set `.env`:
+Or copy `.env.example` → `.env` and fill in credentials manually.
+
+### Step 3: Ingest your codebase
+```bash
+python connector/ingest_repo.py src/ --llm --llm-limit 200
+python connector/embed_kg.py
 ```
-NEO4J_URI=neo4j+s://<your-aura>.databases.neo4j.io
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=...
-NEO4J_DATABASE=...
-NAMS_API_KEY=nams_...
-NAMS_WORKSPACE_ID=...
-OPENAI_API_KEY=sk-...
+
+That's it. Register with Claude Code and use:
+```bash
+claude mcp add save-my-tokens -- python connector/mcp_server.py
 ```
 
 ### Ingest a repo
