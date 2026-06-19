@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "neo4j-graphacademy": {
+      "type": "http",
+      "url": "https://mcp.dev.graphacademy.neo4j.com/mcp"
+    },
+    "nams": {
+      "type": "http",
+      "url": "https://memory.neo4jlabs.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${NAMS_API_KEY}"
+      }
+    },
+    "neo4j": {
+      "command": "uvx",
+      "args": ["mcp-neo4j-cypher@latest", "--transport", "stdio"],
+      "env": {
+        "NEO4J_URI": "${NEO4J_URI}",
+        "NEO4J_USERNAME": "${NEO4J_USERNAME}",
+        "NEO4J_PASSWORD": "${NEO4J_PASSWORD}",
+        "NEO4J_DATABASE": "${NEO4J_DATABASE}"
+      }
+    }
+  }
+}
