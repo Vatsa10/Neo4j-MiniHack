@@ -1,4 +1,4 @@
-# Save My Tokens
+# Save My Tokens (made for [Neo4j MiniHack](https://luma.com/mrb95k98))
 
 **Persistent memory for coding agents — built on Neo4j Aura.**
 
@@ -43,7 +43,7 @@ query, no cross-service orchestration.
 ### Step 2: Run the setup wizard
 ```bash
 git clone <this-repo> && cd Neo4j-MiniHack
-pip install -r save-my-tokens/requirements.txt
+pip install -r save_my_tokens/requirements.txt
 python -m save_my_tokens.setup          # interactive — tests connections, writes .env
 ```
 
@@ -51,24 +51,24 @@ Or copy `.env.example` → `.env` and fill in credentials manually.
 
 ### Step 3: Ingest your codebase
 ```bash
-python save-my-tokens/ingest.py src/ --llm --llm-limit 200
-python save-my-tokens/embed.py
+python save_my_tokens/ingest.py src/ --llm --llm-limit 200
+python save_my_tokens/embed.py
 ```
 
 That's it. Register with Claude Code and use:
 ```bash
-claude mcp add save-my-tokens -- python save-my-tokens/server.py
+claude mcp add save-my-tokens -- python save_my_tokens/server.py
 ```
 
 ### Ingest a repo
 ```bash
-python3 save-my-tokens/ingest.py target-vscode/src --llm --llm-limit 250
-python3 save-my-tokens/embed.py
+python3 save_my_tokens/ingest.py target-vscode/src --llm --llm-limit 250
+python3 save_my_tokens/embed.py
 ```
 
 ### Query
 ```bash
-python3 save-my-tokens/engine.py "how does the file service watch for changes"
+python3 save_my_tokens/engine.py "how does the file service watch for changes"
 ```
 
 MCP tools:
@@ -103,13 +103,13 @@ matched symbols (exact line numbers), dependency neighbors, and exact code from 
 
 | Path | What |
 |------|------|
-| `save-my-tokens/ingest.py` | Repo → vertical KG (deterministic walk + gpt-4o-mini) |
-| `save-my-tokens/embed.py` | Embed Concept nodes → `concept_vec` vector index |
-| `save-my-tokens/engine.py` | Hybrid retrieval: NAMS memory + KG slice → compact context |
-| `save-my-tokens/server.py` | MCP server (3 tools: recall_context, index_file, remember_fact) |
-| `save-my-tokens/DEMO.md` | Judging runbook |
-| `save-my-tokens/PROTOCOL.md` | Per-session memory protocol |
-| `save-my-tokens/measure/` | Token comparison harness |
+| `save_my_tokens/ingest.py` | Repo → vertical KG (deterministic walk + gpt-4o-mini) |
+| `save_my_tokens/embed.py` | Embed Concept nodes → `concept_vec` vector index |
+| `save_my_tokens/engine.py` | Hybrid retrieval: NAMS memory + KG slice → compact context |
+| `save_my_tokens/server.py` | MCP server (3 tools: recall_context, index_file, remember_fact) |
+| `save_my_tokens/DEMO.md` | Judging runbook |
+| `save_my_tokens/PROTOCOL.md` | Per-session memory protocol |
+| `save_my_tokens/measure/` | Token comparison harness |
 
 ## The combine
 
@@ -127,4 +127,4 @@ No REST round-trip needed. No cross-service glue. One graph, two services, one q
 
 ---
 
-Built for the [Neo4j MiniHack](https://neo4j.com) — combining Aura Document Intelligence + Agent Memory Service.
+Built for the [Neo4j MiniHack](https://luma.com/mrb95k98) — combining Aura Document Intelligence + Agent Memory Service.
