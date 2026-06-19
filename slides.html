@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Save My Tokens</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font:16px/1.6 system-ui,-apple-system,sans-serif;background:#0d1117;color:#c9d1d9;overflow:hidden}
+  .deck{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;transition:opacity .3s}
+  .slide{display:none;width:100%;max-width:900px;padding:0 2rem;flex-direction:column;gap:1.5rem}
+  .slide.active{display:flex}
+  h1{font-size:3rem;font-weight:700;color:#f0f6fc;letter-spacing:-.02em}
+  h2{font-size:2rem;font-weight:600;color:#f0f6fc}
+  h3{font-size:1.25rem;color:#8b949e;font-weight:400;text-transform:uppercase;letter-spacing:.1em}
+  p{color:#8b949e;max-width:640px}
+  .num{font-size:4rem;font-weight:800;color:#6366F1;font-variant-numeric:tabular-nums}
+  .num-label{font-size:1rem;color:#8b949e}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;width:100%}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:1.25rem;display:flex;flex-direction:column;gap:.5rem}
+  .card .big{font-size:2rem;font-weight:700;color:#6366F1}
+  .card .label{color:#8b949e;font-size:.9rem}
+  .row{display:flex;gap:2rem;align-items:center;flex-wrap:wrap}
+  .tag{display:inline-block;padding:2px 10px;border-radius:99px;font-size:.8rem;font-weight:600}
+  .tag-mem{background:#F08C001a;color:#F08C00}
+  .tag-kg{background:#1971C21a;color:#58a6ff}
+  .tag-auto{background:#2F9E441a;color:#2F9E44}
+  .flow{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;font-size:.95rem}
+  .flow-box{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:.75rem 1.25rem;text-align:center}
+  .flow-arrow{color:#6366F1;font-weight:700;font-size:1.2rem}
+  .bar{display:flex;height:48px;border-radius:6px;overflow:hidden;width:100%}
+  .bar-cold{background:#30363d;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.85rem}
+  .bar-warm{background:#6366F1;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.85rem;color:#fff}
+  .nav{position:fixed;bottom:2rem;right:2rem;display:flex;gap:.5rem;align-items:center}
+  .nav span{color:#484f58;font-size:.85rem}
+  .nav kbd{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:4px 8px;font-size:.75rem;color:#8b949e;font-family:inherit}
+  @media(max-width:640px){h1{font-size:2rem}h2{font-size:1.5rem}.num{font-size:2.5rem}.row{flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- 1. Title -->
+<div class="slide active">
+  <h3>Neo4j MiniHack</h3>
+  <h1>Save My Tokens</h1>
+  <p style="font-size:1.2rem;color:#c9d1d9">Persistent memory for coding agents —<br>recall, don't re-read.</p>
+  <div class="row" style="margin-top:1rem">
+    <span class="tag tag-mem">Agent Memory Service</span>
+    <span class="tag tag-kg">Document Intelligence</span>
+    <span class="tag tag-auto">Auto-persist</span>
+  </div>
+  <p style="font-size:.85rem;color:#484f58">🠔 🠖 arrow keys or tap to advance</p>
+</div>
+
+<!-- 2. Problem -->
+<div class="slide">
+  <h3>Problem</h3>
+  <h2>Every new session, the agent<br>re-learns your entire repo.</h2>
+  <div class="row" style="margin-top:.5rem">
+    <div class="card"><div class="big">43,500</div><div class="label">tokens — cold session<br>re-reads files, greps, configs</div></div>
+    <div class="card"><div class="big">~2,200</div><div class="label">files re-grepped<br>every new session</div></div>
+    <div class="card"><div class="big">0</div><div class="label">persistence between<br>sessions. Nothing survives.</div></div>
+  </div>
+</div>
+
+<!-- 3. What we built -->
+<div class="slide">
+  <h3>Solution</h3>
+  <h2>One graph. Two services.<br>Persistent memory at query time.</h2>
+  <div class="flow" style="margin-top:.5rem">
+    <div class="flow-box"><span class="tag tag-mem">NAMS</span><br><small>what the agent<br>learned</small></div>
+    <span class="flow-arrow">+</span>
+    <div class="flow-box"><span class="tag tag-kg">Code KG</span><br><small>2,227 files<br>24k symbols</small></div>
+    <span class="flow-arrow">=</span>
+    <div class="flow-box" style="border-color:#6366F1"><span style="color:#6366F1;font-weight:700">Single AuraDB</span><br><small>joined by<br>entity name</small></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-box" style="border-color:#2F9E44"><span class="tag tag-auto">recall_context</span><br><small>one MCP call<br>stores automatically</small></div>
+  </div>
+</div>
+
+<!-- 4. The graph -->
+<div class="slide">
+  <h3>Vertical Knowledge Graph</h3>
+  <div class="grid" style="grid-template-columns:repeat(3,1fr)">
+    <div class="card"><div class="big">2,227</div><div class="label">Files</div></div>
+    <div class="card"><div class="big">24,682</div><div class="label">Symbols<br><small style="color:#8b949e">class · interface · function · method</small></div></div>
+    <div class="card"><div class="big">2,736</div><div class="label">File→File IMPORTS<br><small style="color:#8b949e">traversable dep chains</small></div></div>
+    <div class="card"><div class="big">11,352</div><div class="label">method→class<br><small style="color:#8b949e">MEMBER_OF containment</small></div></div>
+    <div class="card"><div class="big">399</div><div class="label">Concepts<br><small style="color:#8b949e">gpt-4o-mini tagged</small></div></div>
+    <div class="card"><div class="big">6</div><div class="label">Entity nodes<br><small style="color:#8b949e">NAMS agent memory</small></div></div>
+  </div>
+</div>
+
+<!-- 5. How it works -->
+<div class="slide">
+  <h3>Per Turn</h3>
+  <div class="flow" style="flex-direction:column;align-items:flex-start;gap:.5rem">
+    <div class="flow-box" style="text-align:left;width:100%">📥 <b>embedQuery(task)</b> → vector search concept_vec index</div>
+    <span class="flow-arrow" style="align-self:center">+</span>
+    <div class="flow-box" style="text-align:left;width:100%">🔍 <b>Cypher MATCH</b> Entity (NAMS memory) + File·Symbol·Concept (KG)</div>
+    <span class="flow-arrow" style="align-self:center">+</span>
+    <div class="flow-box" style="text-align:left;width:100%">📊 <b>graph-ranked merge</b> — multi-signal bonus per file</div>
+    <span class="flow-arrow" style="align-self:center">+</span>
+    <div class="flow-box" style="text-align:left;width:100%">💾 <b>read exact code</b> from disk via line ranges</div>
+    <span class="flow-arrow" style="align-self:center">→</span>
+    <div class="flow-box" style="text-align:left;width:100%;border-color:#2F9E44"><span class="tag tag-auto">auto-store</span> exchange to NAMS (fire-and-forget)</div>
+  </div>
+</div>
+
+<!-- 6. Numbers -->
+<div class="slide">
+  <h3>Verified — VSCode Codebase</h3>
+  <div class="bar" style="margin-top:.5rem"><div class="bar-cold" style="width:100%">43,500 (cold)</div></div>
+  <div class="bar" style="margin:.5rem 0 0 0"><div class="bar-warm" style="width:3.5%">1,551 🠔</div></div>
+  <p style="color:#6366F1;font-weight:600;font-size:1.1rem">96.4% fewer tokens · 8/8 symbols verified correct against source</p>
+  <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-top:.5rem">
+    <div class="card"><div class="big">97.9%</div><div class="label">saved<br>"undo and redo stack"</div></div>
+    <div class="card"><div class="big">96.5%</div><div class="label">saved<br>"file watcher event"</div></div>
+    <div class="card"><div class="big">96.7%</div><div class="label">saved<br>"session signing"</div></div>
+  </div>
+</div>
+
+<!-- 7. Architecture flow -->
+<div class="slide">
+  <h3>Full Architecture</h3>
+  <div class="flow" style="flex-direction:column;gap:.3rem;font-size:.85rem">
+    <div class="row" style="justify-content:center;gap:.5rem">
+      <div class="flow-box">target-vscode/src<br><small>2,227 TS files</small></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box">ingest_repo.py<br><small>struct walk + LLM</small></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box">embed_kg.py<br><small>concept_vec index</small></div>
+    </div>
+    <span style="text-align:center;color:#6366F1">▼</span>
+    <div class="row" style="justify-content:center;gap:.5rem">
+      <div class="flow-box" style="border-color:#F08C00"><span class="tag tag-mem">Entity</span><br><small>NAMS memory</small></div>
+      <span style="color:#484f58">┊</span>
+      <div class="flow-box" style="border-color:#58a6ff"><span class="tag tag-kg">File·Symbol·Concept</span><br><small>code KG</small></div>
+      <span style="color:#484f58">┊</span>
+      <div class="flow-box" style="border-color:#58a6ff"><span class="tag tag-kg">Document·Chunk</span><br><small>Doc-Intel</small></div>
+    </div>
+    <span style="text-align:center;color:#8b949e">One AuraDB · one Cypher join</span>
+    <span style="text-align:center;color:#6366F1">▼</span>
+    <div class="row" style="justify-content:center">
+      <div class="flow-box" style="border-color:#2F9E44"><span class="tag tag-auto">recall_context(task)</span><br><small>→ compact context + auto-store</small></div>
+    </div>
+  </div>
+</div>
+
+<!-- 8. Talk track -->
+<div class="slide">
+  <h3>30-second pitch</h3>
+  <p style="font-size:1.3rem;color:#c9d1d9;line-height:1.8;max-width:100%">
+    "Every new agent session relearns your repo — <span style="color:#6366F1">tens of thousands of tokens</span>, every time.
+    We build a <span style="color:#6366F1">vertical knowledge graph</span> of the code:
+    2,227 files, 24,000 symbols with containment, 2,700 resolved import edges you can traverse —
+    plus a semantic layer via embeddings.
+    <br><br>
+    Agent memory <span style="color:#6366F1">persists across sessions</span>.
+    Next session, the bridge joins memory + graph and returns a few hundred tokens of exactly relevant context —
+    matched symbols with line numbers, dependency neighbors, and real code read from disk.
+    <br><br>
+    <span style="color:#2F9E44">97% less context, same answer.</span>
+    And because memory and code live in <span style="color:#F08C00">one graph</span>,
+    they join on shared entities."
+  </p>
+</div>
+
+<!-- 9. End -->
+<div class="slide" style="align-items:center;text-align:center">
+  <h1 style="font-size:4rem">Thank you</h1>
+  <p style="font-size:1.1rem">Built with Neo4j Aura · Agent Memory Service · Document Intelligence<br>github.com/vatsa10/Neo4j-MiniHack</p>
+</div>
+
+</div>
+
+<div class="nav">
+  <kbd>←</kbd> <kbd>→</kbd> <span id="pos"></span>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let i = 0;
+  function show(n) {
+    i = (n + slides.length) % slides.length;
+    slides.forEach((s,j) => s.classList.toggle('active', j === i));
+    document.getElementById('pos').textContent = `${i+1}/${slides.length}`;
+  }
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') show(i + 1);
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') show(i - 1);
+  });
+  document.addEventListener('click', e => {
+    if (e.clientX > window.innerWidth / 2) show(i + 1);
+    else show(i - 1);
+  });
+  show(0);
+</script>
+</body>
+</html>

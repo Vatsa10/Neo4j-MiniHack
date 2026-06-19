@@ -86,7 +86,32 @@ def recall_context(task: str) -> str:
     # Fire-and-forget: persist this exchange so entity extraction runs
     _auto_store(task, warm)
     return warm + footer
-    return warm + footer
+
+
+@mcp.tool()
+def ingest_folder(path: str, llm: bool = False) -> str:
+    """Add an entire folder into the codebase knowledge graph on demand: parse all
+    source files, resolve imports to real files (vertical depth), write to AuraDB,
+    and optionally tag with concept tags (gpt-4o-mini). Call this when you need to
+    make a new codebase available for recall_context. path is absolute or relative
+    to cwd (e.g. '~/my-project/src')."""
+    root = Path(path).expanduser().resolve()
+    if not root.exists():
+        return f"no such folder: {root}"
+    from ingest_repo import walk, resolve_imports, write_graph
+    records = list(walk(root))
+    resolve_imports(records)
+    nsym = sum(len(r["defs"]) for r in records)
+    nint = sum(len(r["internal_imports"]) for r in records)
+    if llm:
+        from openai import OpenAI
+        from ingest_repo import llm_concepts
+        client = OpenAI()
+        for r in records:
+            r["concepts"] = llm_concepts(r, client)
+    write_graph(records, _driver, _DB)
+    return (f"ingested {root.name}: {len(records)} files, {nsym} symbols, "
+            f"{nint} internal imports" + (f", {sum(1 for r in records if r.get('concepts'))} concepts" if llm else ""))
 
 
 @mcp.tool()

@@ -1,0 +1,1 @@
+Call `mcp__save-my-tokens__ingest_folder` with the folder path the user provided. After ingestion succeeds, tell the user the count of files/symbols/imports ingested, and that `recall_context` can now retrieve from this codebase.
