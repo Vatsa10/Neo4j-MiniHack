@@ -5,7 +5,7 @@ Embeds Concept nodes (text-embedding-3-small) and creates a Neo4j vector index,
 so retrieval can match a task by *meaning* ("how is config loaded" -> concept
 "flask config") instead of substring, then traverse ABOUT edges to the files.
 
-Run once after ingest_repo.py --llm:  python3 connector/embed_kg.py
+Run once after ingest.py --llm:  python3 save-my-tokens/embed.py
 Needs OPENAI_API_KEY + NEO4J_* in env.
 """
 import os
@@ -43,7 +43,7 @@ def main():
             RETURN c.name AS name, collect(f.name)[..6] AS files
         """).data()
         if not rows:
-            print("no Concept nodes — run ingest_repo.py --llm first")
+            print("no Concept nodes — run ingest.py --llm first")
             return
         texts = [f"{r['name']} — files: {', '.join(r['files'])}" for r in rows]
         vecs = embed(texts, client)

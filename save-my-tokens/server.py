@@ -9,7 +9,7 @@ Tools:
 Both required services are exercised: recall reads agent memory + the knowledge graph;
 remember writes agent memory.
 
-Run (stdio): python connector/mcp_server.py
+Run (stdio): python -m save_my_tokens.server
 Register in .mcp.json as the `save-my-tokens` server.
 """
 import os
@@ -20,8 +20,8 @@ from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from neo4j import GraphDatabase
 
-import ingest_repo as ir
-from context_engine import build_context, NAMS
+from save_my_tokens import ingest as ir
+from save_my_tokens.engine import build_context, NAMS
 
 load_dotenv()
 mcp = FastMCP("save-my-tokens")
@@ -98,14 +98,14 @@ def ingest_folder(path: str, llm: bool = False) -> str:
     root = Path(path).expanduser().resolve()
     if not root.exists():
         return f"no such folder: {root}"
-    from ingest_repo import walk, resolve_imports, write_graph
+    from save_my_tokens.ingest import walk, resolve_imports, write_graph
     records = list(walk(root))
     resolve_imports(records)
     nsym = sum(len(r["defs"]) for r in records)
     nint = sum(len(r["internal_imports"]) for r in records)
     if llm:
         from openai import OpenAI
-        from ingest_repo import llm_concepts
+        from save_my_tokens.ingest import llm_concepts
         client = OpenAI()
         for r in records:
             r["concepts"] = llm_concepts(r, client)

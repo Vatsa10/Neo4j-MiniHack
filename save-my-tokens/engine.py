@@ -9,8 +9,8 @@ Then compare against the "cold" cost of reading those files in full.
 
 Creds from .env: NEO4J_*, NAMS_API_KEY.
 Usage:
-  python3 connector/context_engine.py "how does flask handle app config?"
-  python3 connector/context_engine.py "..." --repo-root target-repo/src   # for cold-cost sizing
+  python3 save-my-tokens/engine.py "how does flask handle app config?"
+  python3 save-my-tokens/engine.py "..." --repo-root target-repo/src   # for cold-cost sizing
 """
 import argparse
 import os

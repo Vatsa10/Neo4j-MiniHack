@@ -2,10 +2,10 @@
 
 Neo4j MiniHack workspace. Building **Save My Tokens** — persistent memory + codebase KG for coding agents.
 - `save-my-tokens/PROTOCOL.md` — per-session memory loop · `save-my-tokens/DEMO.md` — judging runbook.
-- `connector/ingest_repo.py` — repo→**vertical KG** into AuraDB. Model: `(:File)-[:IMPORTS]->(:File)` (resolved, traversable dep chains), `(:File)-[:DEFINES]->(:Symbol{kind,line,endline})`, `(:Symbol)-[:MEMBER_OF]->(:Symbol)` (method→class containment), `(:File)-[:EXT_IMPORT]->(:Module)`, `(:File)-[:ABOUT]->(:Concept)` (gpt-4o-mini). Exact code NOT stored — line ranges let the retriever read precise slices from disk. Batched flat passes + retries (don't use one giant tx — drops Aura connection). Flags `--llm --llm-limit N`.
-- `connector/embed_kg.py` — embeds Concept nodes + `concept_vec` vector index (run after concepts exist).
-- `connector/context_engine.py` — bridge with **hybrid retrieval**: NAMS vector memory + (concept-vector + symbol/keyword) graph-ranked files, each with matched symbols (line ranges), dependency neighbors, and **exact code read from disk**.
-- `connector/mcp_server.py` — MCP server `save-my-tokens`: `recall_context(task)` (returns context + auto-stores exchange), `ingest_folder(path, llm=False)` (adds a folder to the KG live), `index_file(path)` (deep-index one file live → AuraDB + NAMS summary), `remember_fact(...)`.
+- `save-my-tokens/ingest.py` — repo→**vertical KG** into AuraDB. Model: `(:File)-[:IMPORTS]->(:File)` (resolved, traversable dep chains), `(:File)-[:DEFINES]->(:Symbol{kind,line,endline})`, `(:Symbol)-[:MEMBER_OF]->(:Symbol)` (method→class containment), `(:File)-[:EXT_IMPORT]->(:Module)`, `(:File)-[:ABOUT]->(:Concept)` (gpt-4o-mini). Exact code NOT stored — line ranges let the retriever read precise slices from disk. Batched flat passes + retries (don't use one giant tx — drops Aura connection). Flags `--llm --llm-limit N`.
+- `save-my-tokens/embed.py` — embeds Concept nodes + `concept_vec` vector index (run after concepts exist).
+- `save-my-tokens/engine.py` — bridge with **hybrid retrieval**: NAMS vector memory + (concept-vector + symbol/keyword) graph-ranked files, each with matched symbols (line ranges), dependency neighbors, and **exact code read from disk**.
+- `save-my-tokens/server.py` — MCP server `save-my-tokens`: `recall_context(task)` (returns context + auto-stores exchange), `ingest_folder(path, llm=False)` (adds a folder to the KG live), `index_file(path)` (deep-index one file live → AuraDB + NAMS summary), `remember_fact(...)`.
 - Slash command `/add-folder <path>` — ingests a folder into the codebase KG (calls `ingest_folder`). Use for real-time context injection.
 - Test bed: `target-vscode/` (sparse `src/vs/platform`+`src/vs/base`, ~2227 TS files). `target-repo/` was flask. `REPO_ROOT` env points the server at the on-disk repo for exact-code reads.
 - `.env` adds `NAMS_API_KEY`, `NAMS_WORKSPACE_ID`. NAMS REST needs `X-Workspace-Id` header. Pipeline: ingest → (concepts) → embed_kg → recall.
@@ -24,7 +24,7 @@ Move fast: lean on the MCP servers and `neo4j-*` skills rather than writing from
 - `neo4j` (stdio, `uvx mcp-neo4j-cypher`) — query Aura DB. Reads `NEO4J_*` from env; export `.env` before launching Claude Code (no envFile support).
 - `neo4j-graphacademy` (http) — GraphAcademy tutor + builder tools (graph_modeler, import_advisor, mock_data_generator, project_builder, query_builder).
 - `nams` (http) — hosted Agent Memory Service (memory.neo4jlabs.com). Auth via `Bearer ${NAMS_API_KEY}` (add `NAMS_API_KEY=nams_...` to env before launch). Short-term + long-term (POLE+O) + reasoning memory.
-- `save-my-tokens` (stdio, `python connector/mcp_server.py`) — the bridge as a tool any agent calls each turn: `recall_context(task)` joins NAMS memory + Doc-Intel/code KG into compact context (call before reading files); `remember_fact(name, description, type)` persists durable facts to NAMS.
+- `save-my-tokens` (stdio, `python save-my-tokens/server.py`) — the bridge as a tool any agent calls each turn: `recall_context(task)` joins NAMS memory + Doc-Intel/code KG into compact context (call before reading files); `remember_fact(name, description, type)` persists durable facts to NAMS.
 
 ## Session memory protocol (AUTO — fire-and-forget)
 

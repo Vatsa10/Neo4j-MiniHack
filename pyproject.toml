@@ -13,8 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-save-my-tokens = "connector.mcp_server:main"
+save-my-tokens = "save_my_tokens.server:main"
 
-[tool.setuptools]
-packages = ["connector", "save_my_tokens"]
-py-modules = []
+[tool.setuptools.packages.find]
+include = ["save_my_tokens*"]

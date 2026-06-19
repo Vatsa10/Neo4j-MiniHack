@@ -12,7 +12,7 @@ layer: recall, don't re-read.
 ## Architecture
 
 ```
-target repo  ──► ingest_repo.py ──► AuraDB vertical KG
+target repo  ──► ingest.py ──► AuraDB vertical KG
   (2k+ TS files)  (struct walk        File·Symbol·Concept
                   + gpt-4o-mini)      IMPORTS (traversable dep chains)
                                       MEMBER_OF (class→method containment)
@@ -43,32 +43,32 @@ query, no cross-service orchestration.
 ### Step 2: Run the setup wizard
 ```bash
 git clone <this-repo> && cd Neo4j-MiniHack
-pip install -r connector/requirements.txt
-python connector/setup.py          # interactive — tests connections, writes .env
+pip install -r save-my-tokens/requirements.txt
+python -m save_my_tokens.setup          # interactive — tests connections, writes .env
 ```
 
 Or copy `.env.example` → `.env` and fill in credentials manually.
 
 ### Step 3: Ingest your codebase
 ```bash
-python connector/ingest_repo.py src/ --llm --llm-limit 200
-python connector/embed_kg.py
+python save-my-tokens/ingest.py src/ --llm --llm-limit 200
+python save-my-tokens/embed.py
 ```
 
 That's it. Register with Claude Code and use:
 ```bash
-claude mcp add save-my-tokens -- python connector/mcp_server.py
+claude mcp add save-my-tokens -- python save-my-tokens/server.py
 ```
 
 ### Ingest a repo
 ```bash
-python3 connector/ingest_repo.py target-vscode/src --llm --llm-limit 250
-python3 connector/embed_kg.py
+python3 save-my-tokens/ingest.py target-vscode/src --llm --llm-limit 250
+python3 save-my-tokens/embed.py
 ```
 
 ### Query
 ```bash
-python3 connector/context_engine.py "how does the file service watch for changes"
+python3 save-my-tokens/engine.py "how does the file service watch for changes"
 ```
 
 MCP tools:
@@ -103,10 +103,10 @@ matched symbols (exact line numbers), dependency neighbors, and exact code from 
 
 | Path | What |
 |------|------|
-| `connector/ingest_repo.py` | Repo → vertical KG (deterministic walk + gpt-4o-mini) |
-| `connector/embed_kg.py` | Embed Concept nodes → `concept_vec` vector index |
-| `connector/context_engine.py` | Hybrid retrieval: NAMS memory + KG slice → compact context |
-| `connector/mcp_server.py` | MCP server (3 tools: recall_context, index_file, remember_fact) |
+| `save-my-tokens/ingest.py` | Repo → vertical KG (deterministic walk + gpt-4o-mini) |
+| `save-my-tokens/embed.py` | Embed Concept nodes → `concept_vec` vector index |
+| `save-my-tokens/engine.py` | Hybrid retrieval: NAMS memory + KG slice → compact context |
+| `save-my-tokens/server.py` | MCP server (3 tools: recall_context, index_file, remember_fact) |
 | `save-my-tokens/DEMO.md` | Judging runbook |
 | `save-my-tokens/PROTOCOL.md` | Per-session memory protocol |
 | `save-my-tokens/measure/` | Token comparison harness |

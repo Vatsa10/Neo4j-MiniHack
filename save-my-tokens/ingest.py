@@ -13,9 +13,9 @@ slice from disk. Lean DB, exact code.
 
 Creds from .env (NEO4J_*). LLM uses OPENAI_API_KEY.
 Usage:
-  python3 connector/ingest_repo.py target-vscode/src
-  python3 connector/ingest_repo.py target-vscode/src --llm --llm-limit 300
-  python3 connector/ingest_repo.py target-vscode/src --dry-run
+  python3 save-my-tokens/ingest.py target-vscode/src
+  python3 save-my-tokens/ingest.py target-vscode/src --llm --llm-limit 300
+  python3 save-my-tokens/ingest.py target-vscode/src --dry-run
 """
 import argparse
 import os

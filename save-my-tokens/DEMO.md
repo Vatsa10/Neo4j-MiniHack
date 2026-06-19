@@ -9,7 +9,7 @@ Both required integrations are used:
 
 - **Aura Document Intelligence** + hybrid ingest → vertical codebase KG in AuraDB.
 - **NAMS** (Neo4j Agent Memory Service) → durable facts + injected file summaries across sessions.
-- `connector/mcp_server.py` is the **real-time MCP bridge**: `recall_context`, `index_file`, `remember_fact`.
+- `save-my-tokens/server.py` is the **real-time MCP bridge**: `recall_context`, `index_file`, `remember_fact`.
 
 ---
 
@@ -135,7 +135,7 @@ erDiagram
 
 ## 0. Setup (once)
 
-- `pip install -r connector/requirements.txt`
+- `pip install -r save-my-tokens/requirements.txt`
 - `.env` holds `NEO4J_*`, `NAMS_API_KEY`, `NAMS_WORKSPACE_ID`, `OPENAI_API_KEY`.
 - Clone + sparse-checkout the test bed:
   ```
@@ -146,7 +146,7 @@ erDiagram
 ## 1. Generate the vertical graph
 
 ```
-python3 connector/ingest_repo.py target-vscode/src --llm --llm-limit 250
+python3 save-my-tokens/ingest.py target-vscode/src --llm --llm-limit 250
 ```
 
 - Deterministic walk: 2,227 TS files, 24,682 symbols (class/interface/enum/function/method/const)
@@ -158,7 +158,7 @@ python3 connector/ingest_repo.py target-vscode/src --llm --llm-limit 250
 ## 2. Embed concepts (semantic recall)
 
 ```
-python3 connector/embed_kg.py
+python3 save-my-tokens/embed.py
 ```
 
 - Embeds 399 Concept nodes (`text-embedding-3-small`) → `concept_vec` vector index
@@ -172,7 +172,7 @@ python3 connector/embed_kg.py
 ## 4. The real-time bridge — token proof
 
 ```
-python3 connector/context_engine.py "how does the file service watch for changes"
+python3 save-my-tokens/engine.py "how does the file service watch for changes"
 ```
 
 **Verified results on vscode:**
@@ -193,7 +193,7 @@ Each warm context includes:
 
 ## 5. The MCP server (real-time, no manual script)
 
-`connector/mcp_server.py` — 3 tools, registered as `save-my-tokens` in `.mcp.json`:
+`save-my-tokens/server.py` — 3 tools, registered as `save-my-tokens` in `.mcp.json`:
 
 - `recall_context(task)` — the full vertical retrieval, call before reading files
 - `index_file(path)` — deep-index one file (parse + AuraDB + NAMS summary)
