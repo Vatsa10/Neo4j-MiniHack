@@ -7,7 +7,7 @@
           {
             "type": "command",
             "command": "python",
-            "args": ["save-my-tokens/auto_memory.py"]
+            "args": ["save_my_tokens/auto_memory.py"]
           }
         ]
       }
