@@ -31,7 +31,7 @@ _driver = GraphDatabase.driver(
     auth=(os.environ["NEO4J_USERNAME"], os.environ["NEO4J_PASSWORD"]),
 )
 _DB = os.environ.get("NEO4J_DATABASE", "neo4j")
-_REPO = os.environ.get("REPO_ROOT", "target-vscode/src")
+_REPO = os.environ.get("REPO_ROOT", os.getcwd())
 
 
 # --- auto-memory: persists exchanges to NAMS without the agent asking ---
@@ -177,5 +177,18 @@ def remember_fact(name: str, description: str, type: str = "concept") -> str:
         return f"NAMS write failed: {e}"
 
 
+def main():
+    """Entry point for `save-my-tokens` CLI / `uvx save-my-tokens`."""
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("cmd", nargs="?", default="serve")
+    ap.add_argument("--transport", default="stdio")
+    args = ap.parse_args()
+    if args.cmd == "serve":
+        mcp.run(transport=args.transport)
+    else:
+        print(f"unknown command: {args.cmd}")
+
+
 if __name__ == "__main__":
-    mcp.run()
+    main()

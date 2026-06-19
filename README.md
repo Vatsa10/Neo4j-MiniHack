@@ -31,9 +31,23 @@ Both Neo4j services share **one AuraDB** (NAMS runs in external-db mode). Memory
 (`:Entity`) + code KG (`:File/:Symbol/:Concept`) join on entity name — single Cypher
 query, no cross-service orchestration.
 
-## Quickstart
+## Plug and play (one command)
 
-### Install
+```bash
+# 1. Install
+pip install -e .
+
+# 2. Register with Claude Code
+claude mcp add save-my-tokens -- python -m connector.mcp_server
+
+# 3. Ingest your repo (from within Claude Code)
+/add-folder src/
+```
+
+That's it. `recall_context` now retrieves from your codebase. No clone, no manual Cypher, no console.
+
+### Full setup (for development)
+
 ```bash
 pip install -r connector/requirements.txt
 ```
@@ -51,28 +65,13 @@ OPENAI_API_KEY=sk-...
 
 ### Ingest a repo
 ```bash
-# Clone a test bed
-git clone --no-checkout --depth 1 --filter=blob:none https://github.com/microsoft/vscode target-vscode
-cd target-vscode && git sparse-checkout set src/vs/platform src/vs/base && git checkout
-cd ..
-
-# Ingest (structure + concepts)
 python3 connector/ingest_repo.py target-vscode/src --llm --llm-limit 250
-
-# Embed concepts for semantic recall
 python3 connector/embed_kg.py
 ```
 
 ### Query
 ```bash
 python3 connector/context_engine.py "how does the file service watch for changes"
-```
-
-### Run the MCP server
-Registered in `.mcp.json` as `save-my-tokens`. Launch Claude Code with `.env` exported:
-```powershell
-Get-Content .env | ? {$_ -match '^\w+='} | % { $kv=$_.Split('=',2); [Environment]::SetEnvironmentVariable($kv[0].Trim(),$kv[1].Trim()) }
-claude
 ```
 
 MCP tools:

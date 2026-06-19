@@ -4,3 +4,9 @@ target-repo/
 __pycache__/
 .venv/
 target-vscode/
+*.egg-info/
+__pycache__/
+.venv/
+dist/
+build/
+.nams_conv_id
