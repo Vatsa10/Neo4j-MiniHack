@@ -41,7 +41,20 @@ python3 connector/ingest_repo.py target-repo/src --llm
 ```
 - Deterministic walk → `File`, `Symbol`, `Module` nodes + `IMPORTS` / `DEFINES` edges (free, scales).
 - gpt-4o-mini → `Concept` nodes + `ABOUT` edges (semantic layer).
-- Verified on flask: **24 files, 387 symbols, 103 modules, ~30 concepts.**
+- Verified on flask: **24 files, 387 symbols, 103 modules, 37 concepts.**
+```
+python3 connector/embed_kg.py        # embed concepts + build the concept_vec vector index
+```
+
+## 1b. Accuracy — hybrid graph retrieval (the differentiator)
+Recall is **not** substring matching. For each task the engine:
+- **memory**: NAMS *vector* search (semantic, scored) over agent-memory entities.
+- **code**: vector search over Concept embeddings → traverse `ABOUT` to files, **unioned** with
+  symbol/keyword hits, then **graph-ranked** (similarity + a bonus per independent signal — a file
+  reached by *both* meaning and structure ranks higher). Each result shows *why* it matched.
+- Example: `"how is configuration loaded at startup"` (no word "config") still ranks
+  `flask/config.py` #1 via the `configuration` concept. Substring matching returns nothing.
+  "Vector gives similarity; the graph gives understanding."
 
 ## 2. Add the Document-Intelligence layer (Aura console)
 - Open Document Intelligence:
@@ -66,6 +79,19 @@ Cold (read files): 32400 tokens
 Warm (this ctx)  :   171 tokens
 Saved            : 32229 tokens (99.5%)
 ```
+
+## 4b. True real-time — the MCP server (no manual script)
+`connector/mcp_server.py` wraps the bridge as an MCP server (registered as `save-my-tokens` in
+`.mcp.json`). Any agent — Claude Code, Cursor, Codex — calls it automatically:
+- `recall_context(task)` → joins NAMS memory + Doc-Intel/code KG → compact context. Agent calls
+  this **before** reading files. Both required services exercised in one call.
+- `remember_fact(name, description, type)` → writes a durable fact to **NAMS** for next session.
+
+Add to any agent (Cursor/Codex use the same stdio entry):
+```
+"save-my-tokens": { "command": "python", "args": ["connector/mcp_server.py"], "env": { ...NEO4J_*, NAMS_* } }
+```
+Then the agent's instruction is just: "call recall_context before exploring; remember_fact when you learn something durable."
 
 ## 5. Live agent proof (real /cost)
 - Cold Claude Code session does task T → `/cost`.

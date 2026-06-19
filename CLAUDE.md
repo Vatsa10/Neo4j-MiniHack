@@ -3,7 +3,8 @@
 Neo4j MiniHack workspace. Building **Save My Tokens** — persistent memory + codebase KG for coding agents.
 - `save-my-tokens/PROTOCOL.md` — per-session memory loop · `save-my-tokens/DEMO.md` — judging runbook.
 - `connector/ingest_repo.py` — hybrid repo→KG (deterministic walk + gpt-4o-mini) into AuraDB.
-- `connector/context_engine.py` — real-time bridge: NAMS memory + AuraDB KG slice → compact context + token proof.
+- `connector/embed_kg.py` — embeds Concept nodes + creates `concept_vec` vector index (run after ingest --llm).
+- `connector/context_engine.py` — real-time bridge with **hybrid retrieval**: NAMS vector memory + (vector-over-Concepts + symbol/keyword) graph-ranked code slice. Pipeline: ingest --llm → embed_kg → recall.
 - `.env` adds `NAMS_API_KEY`, `NAMS_WORKSPACE_ID`. NAMS REST needs `X-Workspace-Id` header.
 - **Key fact**: this NAMS workspace (`dbMode=external`) points at the SAME AuraDB (`095a9ba9`). Memory (`:Entity`) and the code KG (`:File/:Symbol/:Concept`) share one graph, so the bridge is a single Cypher join on entity name — no REST needed (default). `--rest` forces the REST path.
 
@@ -20,6 +21,7 @@ Move fast: lean on the MCP servers and `neo4j-*` skills rather than writing from
 - `neo4j` (stdio, `uvx mcp-neo4j-cypher`) — query Aura DB. Reads `NEO4J_*` from env; export `.env` before launching Claude Code (no envFile support).
 - `neo4j-graphacademy` (http) — GraphAcademy tutor + builder tools (graph_modeler, import_advisor, mock_data_generator, project_builder, query_builder).
 - `nams` (http) — hosted Agent Memory Service (memory.neo4jlabs.com). Auth via `Bearer ${NAMS_API_KEY}` (add `NAMS_API_KEY=nams_...` to env before launch). Short-term + long-term (POLE+O) + reasoning memory.
+- `save-my-tokens` (stdio, `python connector/mcp_server.py`) — the bridge as a tool any agent calls each turn: `recall_context(task)` joins NAMS memory + Doc-Intel/code KG into compact context (call before reading files); `remember_fact(name, description, type)` persists durable facts to NAMS.
 
 ## Architecture — combining the two graphs
 
