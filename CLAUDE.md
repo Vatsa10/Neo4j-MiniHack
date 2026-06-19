@@ -1,6 +1,11 @@
 # CLAUDE.md
 
-Neo4j MiniHack workspace. Building **Save My Tokens** — persistent memory for coding agents (see `save-my-tokens/PROTOCOL.md` for the per-session memory loop, `save-my-tokens/DEMO.md` for the judging runbook).
+Neo4j MiniHack workspace. Building **Save My Tokens** — persistent memory + codebase KG for coding agents.
+- `save-my-tokens/PROTOCOL.md` — per-session memory loop · `save-my-tokens/DEMO.md` — judging runbook.
+- `connector/ingest_repo.py` — hybrid repo→KG (deterministic walk + gpt-4o-mini) into AuraDB.
+- `connector/context_engine.py` — real-time bridge: NAMS memory + AuraDB KG slice → compact context + token proof.
+- `.env` adds `NAMS_API_KEY`, `NAMS_WORKSPACE_ID`. NAMS REST needs `X-Workspace-Id` header.
+- **Key fact**: this NAMS workspace (`dbMode=external`) points at the SAME AuraDB (`095a9ba9`). Memory (`:Entity`) and the code KG (`:File/:Symbol/:Concept`) share one graph, so the bridge is a single Cypher join on entity name — no REST needed (default). `--rest` forces the REST path.
 
 ## Goal
 

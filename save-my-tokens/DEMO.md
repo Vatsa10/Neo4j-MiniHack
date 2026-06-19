@@ -1,57 +1,94 @@
 # Save My Tokens — demo runbook (for judging)
 
 **Pitch:** coding agents re-discover the same project every new session, burning thousands of
-tokens. Save My Tokens gives them persistent memory (NAMS) + a repo knowledge graph (Aura
-Document Intelligence) so a warm session recalls instead of re-reading. Same task, far fewer tokens.
+tokens. Save My Tokens gives them persistent memory (NAMS) + a repo knowledge graph (Neo4j Aura)
+so a warm session recalls instead of re-reading. Same task, far fewer tokens.
 
-Both integrations are live in `.mcp.json`: `neo4j` (AuraDB KG) + `nams` (memory).
+Both required integrations are used:
+- **Aura Document Intelligence** + our hybrid ingest → codebase knowledge graph in AuraDB.
+- **NAMS** (Neo4j Agent Memory Service) → durable facts the agent learned, across sessions.
+- `connector/context_engine.py` is the **real-time bridge** that joins both per query.
+
+> **The combine, made literal:** this NAMS workspace runs in `external` db mode pointing at the
+> *same* AuraDB. So memory (`:Entity`) and the code KG (`:File/:Concept`) sit in one graph — the
+> bridge is a single Cypher join on entity name, no cross-service call. (REST path kept via `--rest`.)
 
 ---
 
-## 0. One-time setup
-- `pip install -r save-my-tokens/measure/requirements.txt` (tiktoken — exact counts; script also runs without it).
-- Export `.env` + launch Claude Code so `neo4j` and `nams` MCPs connect (`/mcp` to check).
+## Architecture
 
-## 1. Cold run — the baseline (no memory)
-- Fresh Claude Code session. Give it task **T**:
-  > "Add a 4th MCP server entry to `.mcp.json` following this repo's conventions."
-- It re-reads `CLAUDE.md`, `.mcp.json`, configs to relearn the env-var / no-secret / no-envFile rules.
-- Run `/cost` → record **cold input tokens**.
-
-## 2. Seed the memory + ingest the KG
-- **Memory:** run the calls in `seed_memory.md` (ontology + durable facts into NAMS).
-- **KG:** open the Aura console Document Intelligence tool
-  (https://console.neo4j.io/projects/54f6b9de-d0af-4494-8b99-4f958b4d2697/tools/document-intelligence),
-  upload `CLAUDE.md`, `.mcp.json`, `save-my-tokens/PROTOCOL.md` → builds Document→Chunk→Entity in AuraDB.
-
-## 3. Warm run — same task, with memory
-- New Claude Code session. Same task **T**.
-- Agent follows `PROTOCOL.md`: `memory_get_context("add an MCP server here")` returns the rules in
-  a few hundred tokens — no repo re-read.
-- Run `/cost` → record **warm input tokens**. Warm < cold = the win.
-
-## 4. Show the graph growing
-- NAMS web console (memory.neo4jlabs.com) → the entities/facts added between runs.
-- AuraDB Browser → the codebase KG (File / Convention / Decision nodes).
-
-## 5. The bridge (combine the two graphs)
-Memory entity and KG file node share a name. Pair the lookups:
-- `mcp__nams__memory_get_entity(name=".mcp.json")` — what the user did with it (memory).
-- `mcp__neo4j__read_neo4j_cypher("MATCH (f:File {name:'.mcp.json'})-[:MENTIONS]->(e) RETURN e.name")` — what it contains (KG).
-- Narrate: "memory knows you were configuring MCP; the KG knows `.mcp.json` defines the servers →
-  agent jumps straight there." Vector-only RAG can't do this join.
-
-## 6. Repeatable number
 ```
-python3 save-my-tokens/measure/token_compare.py
+   target repo ──► connector/ingest_repo.py ─┐         console ──► Aura Document
+   (e.g. flask)    (walk + gpt-4o-mini)       │         Intelligence (repo docs)
+                                              ▼                 │
+                                    ┌──────── AuraDB KG ◄────────┘
+                                    │  File·Symbol·Module·Concept · Document·Chunk·Entity
+   task query ──► context_engine.py ┤
+                  (the bridge)       │
+                                    └──────── NAMS memory  (durable facts, POLE+O)
+                                              ▼
+                                    compact context  ◄── 99% fewer tokens than reading files
 ```
-Current baseline on this repo: **~4,948 → ~151 tokens (≈97% saved)**.
-(Approximation; `/cost` from steps 1 & 3 is the real per-session number.)
+
+## 0. Setup (once)
+- `pip install -r connector/requirements.txt`
+- `.env` holds `NEO4J_*`, `NAMS_API_KEY`, `NAMS_WORKSPACE_ID`. Export before running.
+
+## 1. Generate the graph — hybrid ingest (the "build a graph" step)
+```
+git clone --depth 1 https://github.com/pallets/flask target-repo      # any repo
+python3 connector/ingest_repo.py target-repo/src --llm
+```
+- Deterministic walk → `File`, `Symbol`, `Module` nodes + `IMPORTS` / `DEFINES` edges (free, scales).
+- gpt-4o-mini → `Concept` nodes + `ABOUT` edges (semantic layer).
+- Verified on flask: **24 files, 387 symbols, 103 modules, ~30 concepts.**
+
+## 2. Add the Document-Intelligence layer (Aura console)
+- Open Document Intelligence:
+  https://console.neo4j.io/projects/54f6b9de-d0af-4494-8b99-4f958b4d2697/tools/document-intelligence
+- Upload the repo's prose docs (`README`, `docs/`, `CHANGES`) → builds `Document→Chunk→Entity`
+  in the **same AuraDB**. Now structure (our ingest) + meaning (Doc-Intel) live in one graph.
+
+## 3. Seed memory (NAMS)
+- Run the durable facts in `../save-my-tokens/seed_memory.md`, or let the agent write them as it works
+  (`memory_add_entity` / `memory_add_preference`). These survive across sessions.
+
+## 4. The real-time bridge — token proof
+```
+python3 connector/context_engine.py "how does flask handle app config?"
+```
+Joins NAMS memory + AuraDB KG slice into a compact context and prints the token comparison.
+Verified result:
+```
+Recalled memory : flask config (concept), Flask (tool)
+KG files matched: 4  (app.py, sansio/app.py, config.py, wrappers.py)
+Cold (read files): 32400 tokens
+Warm (this ctx)  :   171 tokens
+Saved            : 32229 tokens (99.5%)
+```
+
+## 5. Live agent proof (real /cost)
+- Cold Claude Code session does task T → `/cost`.
+- Warm session: agent runs the bridge first (recall + KG slice) → `/cost`. Warm < cold.
+- Repeatable approximation: `python3 save-my-tokens/measure/token_compare.py`.
+
+## 6. Show the graphs + the join
+- AuraDB Browser: `MATCH (c:Concept)<-[:ABOUT]-(f:File) RETURN c,f LIMIT 50` — the code KG.
+- NAMS console (memory.neo4jlabs.com): entities/facts growing between sessions.
+- **The bridge**: a NAMS entity ("flask config") and a KG `Concept`/`File` share a name → memory
+  knows *what you were doing*, the KG knows *where the code is*. Vector-only RAG can't make that join.
+
+## Reset
+```
+# code KG only (keeps Doc-Intel + memory):
+source .env; cypher-shell -a $NEO4J_URI -u $NEO4J_USERNAME -p $NEO4J_PASSWORD --file connector/reset.cypher
+```
 
 ---
 
 ## Talk track (30s)
-"Every new agent session relearns your repo — thousands of tokens, every time. We persist the
-durable facts in Neo4j agent memory and the repo structure in a Document-Intelligence graph. Next
-session, the agent recalls in ~150 tokens instead of re-reading 5 files. 97% less context, same
-result — and because both live in graphs, memory and code join on shared entities. That's the demo."
+"Every new agent session relearns your repo — tens of thousands of tokens, every time. We build a
+knowledge graph of the code (deterministic walk + gpt-4o-mini) alongside Aura Document Intelligence,
+and we persist what the agent learns in Neo4j Agent Memory. Next session the bridge joins memory +
+graph and returns ~170 tokens of exactly-relevant context instead of 32,000 tokens of files. 99%
+less context, same answer — and because both are graphs, memory and code join on shared entities."

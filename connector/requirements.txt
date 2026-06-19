@@ -1,0 +1,5 @@
+neo4j
+openai
+tiktoken
+python-dotenv
+requests

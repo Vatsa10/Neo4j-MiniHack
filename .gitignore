@@ -1,2 +1,5 @@
 .env
 Neo4j-095a9ba9-Created-2026-06-19.txt
+target-repo/
+__pycache__/
+.venv/
