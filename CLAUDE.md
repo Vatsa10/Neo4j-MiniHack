@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Neo4j MiniHack workspace. Currently a scaffold — no application code yet.
+Neo4j MiniHack workspace. Building **Save My Tokens** — persistent memory for coding agents (see `save-my-tokens/PROTOCOL.md` for the per-session memory loop, `save-my-tokens/DEMO.md` for the judging runbook).
 
 ## Goal
 
