@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "command": "python",
+        "args": ["connector/auto_memory.py"],
+        "matcher": ""
+      }
+    ]
+  }
+}

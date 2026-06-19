@@ -34,16 +34,58 @@ _DB = os.environ.get("NEO4J_DATABASE", "neo4j")
 _REPO = os.environ.get("REPO_ROOT", "target-vscode/src")
 
 
+# --- auto-memory: persists exchanges to NAMS without the agent asking ---
+_CONV_FILE = Path(__file__).resolve().parent / ".nams_conv_id"
+
+
+def _get_conv_id():
+    if _CONV_FILE.exists():
+        return _CONV_FILE.read_text().strip() or None
+    key, ws = os.environ.get("NAMS_API_KEY"), os.environ.get("NAMS_WORKSPACE_ID")
+    if not key or not ws:
+        return None
+    try:
+        r = requests.post(f"{NAMS}/conversations",
+                          headers={"Authorization": f"Bearer {key}", "X-Workspace-Id": ws},
+                          json={"metadata": {"source": "save-my-tokens-mcp"}}, timeout=15)
+        r.raise_for_status()
+        cid = r.json().get("id", "")
+        _CONV_FILE.write_text(cid)
+        return cid
+    except Exception:
+        return None
+
+
+def _auto_store(task: str, context: str):
+    """Store the task+response in NAMS so entities get extracted — fire-and-forget."""
+    cid = _get_conv_id()
+    key, ws = os.environ.get("NAMS_API_KEY"), os.environ.get("NAMS_WORKSPACE_ID")
+    if not cid or not key or not ws:
+        return
+    try:
+        # API takes one message per call with direct fields, not a "messages" array.
+        for role, content in [("user", task), ("assistant", context[:2000])]:
+            requests.post(f"{NAMS}/conversations/{cid}/messages",
+                          headers={"Authorization": f"Bearer {key}", "X-Workspace-Id": ws},
+                          json={"role": role, "content": content}, timeout=10)
+    except Exception:
+        pass
+
+
 @mcp.tool()
 def recall_context(task: str) -> str:
     """Recall compact, relevant context for a coding task by joining agent memory
     (NAMS) with the codebase/document knowledge graph (Aura) — call this BEFORE
-    reading files or grepping, to avoid re-discovering the project and burning tokens."""
+    reading files or grepping, to avoid re-discovering the project and burning tokens.
+    Also auto-stores this exchange to NAMS so memory grows without manual steps."""
     with _driver.session(database=_DB) as s:
         warm, st = build_context(task, s)
     footer = (f"\n\n<!-- save-my-tokens: {st.get('files')} KG files, "
               f"~{st.get('warm')} tokens vs ~{st.get('cold')} cold "
               f"({st.get('saved_pct')}% saved) -->")
+    # Fire-and-forget: persist this exchange so entity extraction runs
+    _auto_store(task, warm)
+    return warm + footer
     return warm + footer
 
 

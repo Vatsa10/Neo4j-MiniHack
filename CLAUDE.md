@@ -25,13 +25,21 @@ Move fast: lean on the MCP servers and `neo4j-*` skills rather than writing from
 - `nams` (http) — hosted Agent Memory Service (memory.neo4jlabs.com). Auth via `Bearer ${NAMS_API_KEY}` (add `NAMS_API_KEY=nams_...` to env before launch). Short-term + long-term (POLE+O) + reasoning memory.
 - `save-my-tokens` (stdio, `python connector/mcp_server.py`) — the bridge as a tool any agent calls each turn: `recall_context(task)` joins NAMS memory + Doc-Intel/code KG into compact context (call before reading files); `remember_fact(name, description, type)` persists durable facts to NAMS.
 
+## Session memory protocol (AUTO — fire-and-forget)
+
+Agent does NOT call `memory_add_messages` manually. It's automatic:
+
+1. **Before each task**: call `recall_context(task)` → returns context + auto-stores the exchange to NAMS as a side effect (creates conversation on first call, appends messages every call). Entity extraction runs async — the Memory Browser grows without the agent thinking about it.
+2. **On learning a durable fact**: call `remember_fact(name, description, type)`.
+3. **On opening a new file**: call `index_file(path)` — deep-indexes into AuraDB + NAMS.
+4. **On failure**: record via `memory_record_step` (reasining memory differentiator).
+
 ## Architecture — combining the two graphs
 
-MCP-only build (no glue code): Claude is the agent, orchestrating two separate graphs per turn.
-- **Doc Intelligence KG** lives in your AuraDB (`095a9ba9`), built by the Aura console Document Intelligence tool. Read via `neo4j` MCP (Cypher).
-- **Agent memory** lives in NAMS (separate Aura DB), read/written via `nams` MCP.
-- **Per turn**: recall user context from `nams` → retrieve doc facts from `neo4j` → answer → write new memory back to `nams`.
-- **Bridge**: match entities by name across both graphs ("you asked about Policy X before" [memory] + current clause [docs]).
+MCP-only build (no glue code): Claude is the agent, orchestrating the graph per turn.
+- **Doc Intelligence KG** + **NAMS agent memory** share the **same AuraDB** (`095a9ba9`, dbMode=external). Memory (`:Entity`) and code KG (`:File/:Symbol/:Concept`) are one graph — bridge is a single Cypher join.
+- **Per turn**: recall `nams` memory + retrieve `neo4j` KG slice → answer → store exchange back to `nams` (auto).
+- **Bridge**: entity name join across memory + code — "you asked about X before" [memory] + current code [KG].
 
 ## What's here
 
